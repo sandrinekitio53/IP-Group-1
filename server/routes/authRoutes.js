@@ -2,9 +2,11 @@ const router = require("express").Router();
 const { body } = require("express-validator");
 const passport = require("../config/passport");
 const { register, socialCallback } = require("../controllers/authController");
+const { registerLimiter } = require("../middleware/rateLimiters");   // NEW
 
 router.post(
   "/register",
+  registerLimiter,                                                    // NEW: runs before the validators
   [
     body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
     body("email").isEmail().withMessage("Enter a valid email").normalizeEmail(),
