@@ -5,10 +5,12 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db");
 const passport = require("./config/passport");
+const { apiLimiter } = require("./middleware/rateLimiters");
 
 const app = express();
 app.use(helmet());                           // NEW: adds the security headers to every reply
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(apiLimiter);
 app.use(express.json());
 app.use(cookieParser());
 app.use(passport.initialize());
