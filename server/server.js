@@ -1,11 +1,13 @@
 require("dotenv").config();
 const express = require("express");
+const helmet = require("helmet");            // NEW: loads the Helmet library
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db");
 const passport = require("./config/passport");
 
 const app = express();
+app.use(helmet());                           // NEW: adds the security headers to every reply
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
