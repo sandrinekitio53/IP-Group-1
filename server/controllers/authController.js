@@ -1,5 +1,5 @@
 const bcrypt = require("bcryptjs");
-const { validationResult } = require("express-validator");
+const { validationResult, matchedData } = require("express-validator");
 const User = require("../models/User");
 const { issueTokens } = require("../utils/tokens");
 
@@ -10,7 +10,7 @@ exports.register = async (req, res) => {
   }
 
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = matchedData(req);
 
     if (await User.findOne({ email })) {
       return res.status(409).json({ message: "Email already registered" });

@@ -6,11 +6,21 @@ const { registerLimiter } = require("../middleware/rateLimiters");   // NEW
 
 router.post(
   "/register",
-  registerLimiter,                                                    // NEW: runs before the validators
+  registerLimiter,
   [
-    body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
-    body("email").isEmail().withMessage("Enter a valid email").normalizeEmail(),
-    body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
+    body("name")
+      .isString().withMessage("Name must be text").bail()
+      .trim()
+      .isLength({ min: 2, max: 50 }).withMessage("Name must be between 2 and 50 characters"),
+    body("email")
+      .isString().withMessage("Email must be text").bail()
+      .trim()
+      .isEmail().withMessage("Enter a valid email").bail()
+      .isLength({ max: 254 }).withMessage("Email is too long")
+      .normalizeEmail(),
+    body("password")
+      .isString().withMessage("Password must be text").bail()
+      .isLength({ min: 8, max: 72 }).withMessage("Password must be between 8 and 72 characters"),
   ],
   register
 );
