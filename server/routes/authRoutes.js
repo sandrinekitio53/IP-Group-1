@@ -2,7 +2,8 @@ const router = require("express").Router();
 const { body } = require("express-validator");
 const passport = require("../config/passport");
 const { register, socialCallback } = require("../controllers/authController");
-const { registerLimiter } = require("../middleware/rateLimiters");   // NEW
+const { registerLimiter } = require("../middleware/rateLimiters");
+const { isBreachedPassword } = require("../utils/passwordCheck");
 
 router.post(
   "/register",
@@ -18,9 +19,17 @@ router.post(
       .isEmail().withMessage("Enter a valid email").bail()
       .isLength({ max: 254 }).withMessage("Email is too long")
       .normalizeEmail(),
-    body("password")
+        body("password")
       .isString().withMessage("Password must be text").bail()
-      .isLength({ min: 8, max: 72 }).withMessage("Password must be between 8 and 72 characters"),
+      .isLength({ min: 8, max: 72 }).withMessage("Password must be between 8 and 72 characters").bail()
+      .matches(/[A-Za-z]/).withMessage("Password must contain at least one letter").bail()
+      .matches(/\d/).withMessage("Password must contain at least one number").bail()
+      .custom(async (value) => {
+        if (await isBreachedPassword(value)) {
+          throw new Error("This password appears in known data breaches. Please choose a different one.");
+        }
+        return true;
+      }),
   ],
   register
 );
