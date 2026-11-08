@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 const passport = require("./config/passport");
 const { apiLimiter } = require("./middleware/rateLimiters");
 const { sanitizeBody } = require("./middleware/sanitize");
+const { notFound, errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 app.use(helmet());                           // NEW: adds the security headers to every reply
@@ -19,6 +20,8 @@ app.use(passport.initialize());
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use(notFound);        // runs only if no route above matched
+app.use(errorHandler);    // must be the very last middleware
 
 const PORT = process.env.PORT || 5000;
 connectDB()
