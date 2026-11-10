@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { API_URL } from '../../api.js';
 
-const EMPTY_FORM = { code: '', newPassword: '', confirmPassword: '' };
+const EMPTY_FORM = { newPassword: '', confirmPassword: '' };
 
 export default function ResetPassword() {
+  const [searchParams] = useSearchParams();
+  const { token: routeToken } = useParams();
+  const resetToken = searchParams.get('token') || routeToken || '';
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [showPw, setShowPw] = useState(false);
@@ -19,14 +23,14 @@ export default function ResetPassword() {
   function validate() {
     const nextErrors = {};
 
-    if (!form.code.trim()) nextErrors.code = 'Reset code is required.';
+    if (!resetToken) nextErrors.token = 'Reset link is missing or invalid.';
     if (form.newPassword.length < 8) nextErrors.newPassword = 'Password must be at least 8 characters.';
     if (form.confirmPassword !== form.newPassword) nextErrors.confirmPassword = 'Passwords do not match.';
 
     return nextErrors;
   }
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     const nextErrors = validate();
     setErrors(nextErrors);
@@ -34,11 +38,27 @@ export default function ResetPassword() {
     if (Object.keys(nextErrors).length) return;
 
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password/${encodeURIComponent(resetToken)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: form.newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Unable to reset password.');
+      }
+
       setDone(true);
       setForm(EMPTY_FORM);
-    }, 600);
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, token: err.message || 'Unable to reset password.' }));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -80,17 +100,7 @@ export default function ResetPassword() {
         )}
 
         <form onSubmit={onSubmit} noValidate>
-          <label htmlFor="code">Reset code</label>
-          <input
-            id="code"
-            name="code"
-            type="text"
-            value={form.code}
-            onChange={onChange}
-            className={errors.code ? 'bad' : ''}
-            placeholder="Enter 6-digit code"
-          />
-          {errors.code && <small className="err">{errors.code}</small>}
+          {errors.token && <small className="err">{errors.token}</small>}
 
           <label htmlFor="newPassword">New password</label>
           <div className="pw">
@@ -100,6 +110,8 @@ export default function ResetPassword() {
               type={showPw ? 'text' : 'password'}
               value={form.newPassword}
               onChange={onChange}
+              onCopy={(e) => e.preventDefault()}
+              onCut={(e) => e.preventDefault()}
               className={errors.newPassword ? 'bad' : ''}
             />
             <button type="button" className="eye" onClick={() => setShowPw((prev) => !prev)}>
@@ -116,6 +128,8 @@ export default function ResetPassword() {
               type={showPw ? 'text' : 'password'}
               value={form.confirmPassword}
               onChange={onChange}
+              onCopy={(e) => e.preventDefault()}
+              onCut={(e) => e.preventDefault()}
               className={errors.confirmPassword ? 'bad' : ''}
             />
             <button type="button" className="eye" onClick={() => setShowPw((prev) => !prev)}>

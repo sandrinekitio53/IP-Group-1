@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const User = require("../models/User");
+const Session = require("../models/Session");
 const RefreshToken = require("../models/RefreshToken");
 const {
   issueTokens,
@@ -10,6 +11,8 @@ const {
   clearTokens,
   revokeAllSessions,
   sha256,
+  endSession,
+  touchSession,
 } = require("../utils/tokens");
 
 const DUMMY_HASH = bcrypt.hashSync("dummy-password-for-timing", 12);
@@ -36,7 +39,7 @@ exports.register = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({ name, email, passwordHash });
 
-    await issueTokens(res, user);
+    await issueTokens(req, res, user);
     res.status(201).json({ user: publicUser(user) });
   } catch (err) {
     if (err.code === 11000) {
@@ -73,7 +76,7 @@ exports.login = async (req, res) => {
     }
 
     await user.resetAttempts();
-    await issueTokens(res, user);
+    await issueTokens(req, res, user);
     return res.json({ success: true, user: publicUser(user) });
   } catch (err) {
     console.error("Login error:", err.message);
@@ -91,6 +94,10 @@ exports.session = async (req, res) => {
     if (!user || (user.tokenVersion ?? 0) !== (decoded.tv ?? 0)) {
       return res.json({ success: false, user: null });
     }
+    const validSession = await touchSession(decoded.sid, user._id);
+    if (!validSession) {
+      return res.json({ success: false, user: null });
+    }
     return res.json({ success: true, user: publicUser(user) });
   } catch {
     return res.json({ success: false, user: null });
@@ -104,6 +111,12 @@ exports.refresh = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET, { algorithms: ["HS256"] });
     if (!decoded.jti || !decoded.fam) throw new Error("Old token format");
+
+    const validSession = await touchSession(decoded.fam, decoded.id, { bump: false });
+    if (!validSession) {
+      clearTokens(res);
+      return notAuth(res);
+    }
 
     const tokenHash = sha256(decoded.jti);
 
@@ -122,19 +135,19 @@ exports.refresh = async (req, res) => {
       }
 
       // Used long ago, or unknown: treat as theft and kill the whole family
-      await RefreshToken.deleteMany({ family: decoded.fam });
+      await endSession(decoded.fam);
       clearTokens(res);
       return notAuth(res);
     }
 
     const user = await User.findById(decoded.id).select("_id tokenVersion");
     if (!user || (user.tokenVersion ?? 0) !== (decoded.tv ?? 0)) {
-      await RefreshToken.deleteMany({ family: decoded.fam });
+      await endSession(decoded.fam);
       clearTokens(res);
       return notAuth(res);
     }
 
-    issueAccessToken(res, user);
+    issueAccessToken(res, user, decoded.fam);
     await issueRefreshToken(res, user, decoded.fam); // rotation: same family, new token
     return res.json({ success: true });
   } catch {
@@ -148,7 +161,7 @@ exports.logout = async (req, res) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET, { algorithms: ["HS256"] });
-      if (decoded.fam) await RefreshToken.deleteMany({ family: decoded.fam });
+      if (decoded.fam) await endSession(decoded.fam);
     } catch {      /* invalid or expired: nothing to delete */ }
   }
   clearTokens(res);
@@ -188,7 +201,7 @@ exports.changePassword = async (req, res) => {
 
     await revokeAllSessions(user._id);
     const fresh = await User.findById(user._id).select("_id tokenVersion");
-    await issueTokens(res, fresh);
+    await issueTokens(req, res, fresh);
 
     return res.json({ success: true, message: "Password changed" });
   } catch (err) {
@@ -200,7 +213,7 @@ exports.changePassword = async (req, res) => {
 exports.socialCallback = async (req, res) => {
   try {
     res.clearCookie("oauth_state");
-    await issueTokens(res, req.user); // must be awaited: it writes to the database
+    await issueTokens(req, res, req.user); // must be awaited: it writes to the database
     res.redirect(`${process.env.CLIENT_URL}/`); // landing page; never put a token in the URL
   } catch (err) {
     console.error("Social callback error:", err.message);
@@ -286,6 +299,42 @@ exports.resetPassword = async (req, res) => {
   } catch (error) {
     console.error("Reset password error:", error);
     return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+exports.listSessions = async (req, res) => {
+  try {
+    const sessions = await Session.find({ user: req.user._id })
+      .sort({ lastActiveAt: -1, createdAt: -1 })
+      .select("sid userAgent ip lastActiveAt");
+
+    const payload = sessions.map((session) => ({
+      id: session.sid,
+      device: session.userAgent || "Unknown device",
+      ip: session.ip || "Unknown IP",
+      lastActiveAt: session.lastActiveAt,
+      current: session.sid === req.sid,
+    }));
+
+    return res.json({ success: true, sessions: payload });
+  } catch (err) {
+    console.error("List sessions error:", err.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.revokeSession = async (req, res) => {
+  try {
+    const session = await Session.findOne({ user: req.user._id, sid: req.params.sid }).select("sid");
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    await endSession(session.sid);
+    return res.json({ success: true, message: "Session revoked" });
+  } catch (err) {
+    console.error("Revoke session error:", err.message);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 // socialCallback is parked with the Google and Facebook routes.

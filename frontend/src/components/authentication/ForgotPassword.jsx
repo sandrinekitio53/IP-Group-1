@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_URL } from '../../api.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -9,7 +10,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     const trimmed = email.trim();
 
@@ -21,10 +22,25 @@ export default function ForgotPassword() {
     setError('');
     setLoading(true);
 
-    window.setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: trimmed }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Unable to send reset link.');
+      }
+
       setSent(true);
-    }, 600);
+    } catch (err) {
+      setError(err.message || 'Unable to send reset link.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

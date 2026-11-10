@@ -1,20 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import './landing.css';
+import './landing.css'
 import {
-  NAV,
-  FEATURES,
-  STEPS,
-  ROLES,
-  BOARD,
-  TASK_CHART,
-  BUG_CHART,
-  DUE_SOON,
-  TASK_CARD,
-  BUG_FORM,
-  ACTIVITY,
-  FAQ,
-} from '../../assets/asset.js';
+  NAV, FEATURES, STEPS, ROLES, BOARD,
+  TASK_CHART, BUG_CHART, DUE_SOON, TASK_CARD, BUG_FORM, ACTIVITY, FAQ,
+} from '../../assets/assets.js';
 
 const maxOf = (rows) => Math.max(...rows.map((r) => r[1]));
 const Bars = ({ rows }) =>
@@ -29,6 +19,65 @@ const Bars = ({ rows }) =>
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const AUTH = `${API}/api/auth`;
 const OPTS = { credentials: 'include' };
+
+const COLS = Object.keys(BOARD);
+
+// A working drag-and-drop board: the project's core feature, right in the hero
+function LiveBoard() {
+  const [board, setBoard] = useState(BOARD);
+  const [drag, setDrag] = useState(null);
+  const [over, setOver] = useState(null);
+  const [log, setLog] = useState([]);
+
+  function move(id, from, to) {
+    if (!to || from === to) return;
+    const card = board[from].find((c) => c.id === id);
+    if (!card) return;
+    setBoard((b) => ({
+      ...b,
+      [from]: b[from].filter((c) => c.id !== id),
+      [to]: [...b[to], card],
+    }));
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLog((l) => [`You moved “${card.t}” to ${to} at ${time}`, ...l].slice(0, 3));
+  }
+
+  return (
+    <div className="lp-live">
+      <p className="lp-caption">Try it: drag a card to another column, or tap its arrow.</p>
+      <div className="lp-board">
+        {COLS.map((col, i) => (
+          <div
+            key={col}
+            className={`lp-col ${over === col ? 'over' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setOver(col); }}
+            onDragLeave={() => setOver(null)}
+            onDrop={() => { if (drag) move(drag.id, drag.from, col); setDrag(null); setOver(null); }}
+          >
+            <h3>{col} <span>{board[col].length}</span></h3>
+            {board[col].map((c) => (
+              <div
+                key={c.id}
+                className={`lp-card ${c.p} ${col === 'Done' ? 'done' : ''}`}
+                draggable
+                onDragStart={() => setDrag({ id: c.id, from: col })}
+                onDragEnd={() => { setDrag(null); setOver(null); }}
+              >
+                <span>{c.t}</span>
+                {i < COLS.length - 1 && (
+                  <button aria-label={`Move ${c.t} to ${COLS[i + 1]}`} onClick={() => move(c.id, col, COLS[i + 1])}>→</button>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <ul className="lp-feed" aria-live="polite">
+        {log.length === 0 ? <li>Your moves appear here, like the activity log in the app.</li> : log.map((l) => <li key={l}>{l}</li>)}
+      </ul>
+    </div>
+  );
+}
 
 export default function Landing() {
   const [user, setUser] = useState(null);
@@ -91,7 +140,7 @@ export default function Landing() {
           </ul>
 
           <div className="lp-auth">
-            {user ? (
+            {!ready ? null : user ? (
               <>
                 <span className="lp-hello">Hi, {user.name.split(' ')[0]}</span>
                 <button className="lp-btn ghost" onClick={logout}>Log out</button>
@@ -119,22 +168,12 @@ export default function Landing() {
             ) : (
               <div className="lp-cta">
                 <Link className="lp-btn solid big" to="/signup">Create a free account</Link>
-                <Link className="lp-btn ghost big" to="/login">Log in</Link>
                 <a className="lp-btn ghost big" href="#how">See how it works</a>
               </div>
             )}
           </div>
 
-          <div className="lp-board" aria-label="Example Kanban board">
-            {BOARD.map(([title, cards]) => (
-              <div className="lp-col" key={title}>
-                <h3>{title}</h3>
-                {cards.map((c) => (
-                  <div className={`lp-card ${title === 'Done' ? 'done' : ''}`} key={c}>{c}</div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <LiveBoard />
         </section>
 
         <section className="lp-section" id="problem">
@@ -162,7 +201,7 @@ export default function Landing() {
         </section>
 
         <section className="lp-section" id="features">
-          <h2>Everything the team needs to finish the project</h2>
+          <h2>Seven modules, one workspace</h2>
           <div className="lp-grid">
             {FEATURES.map(([t, d]) => (
               <article key={t}><h3>{t}</h3><p>{d}</p></article>

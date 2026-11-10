@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { loginUser,API_URL } from '../../api.js';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { loginUser, API_URL } from '../../api.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 // import './login.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -8,11 +9,14 @@ const EMPTY_FORM = { email: '', password: '' };
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { refreshUser } = useAuth();
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const idleMessage = searchParams.get('reason') === 'idle' ? 'You were logged out due to inactivity.' : '';
 
   // Wipe everything if the browser restores this page from its back/forward cache
   useEffect(() => {
@@ -34,6 +38,10 @@ export default function Login() {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   }
 
+  const blockPasswordAction = (e) => {
+    e.preventDefault();
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setServerError('');
@@ -47,14 +55,15 @@ export default function Login() {
     if (Object.keys(nextErrors).length) return;
 
     const payload = { email, password: form.password };
-    setForm((prev) => ({ ...prev, password: '' })); // password leaves memory right away
+    setForm((prev) => ({ ...prev, password: '' }));
     setShowPw(false);
     setLoading(true);
 
     try {
       await loginUser(payload);
+      await refreshUser();
       setForm(EMPTY_FORM);
-      navigate('/dashboard', { replace: true }); // Back can't return to the login form
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setServerError(err.message || 'Invalid email or password.');
     } finally {
@@ -68,6 +77,7 @@ export default function Login() {
         <h1 id="login-title">Log in</h1>
         <p className="sub">Welcome back! Please sign in to continue.</p>
 
+        {idleMessage && <div className="alert" role="alert">{idleMessage}</div>}
         {serverError && <div className="alert" role="alert">{serverError}</div>}
 
         <a className="google" href={`${API_URL}/api/auth/google`}>
@@ -80,7 +90,6 @@ export default function Login() {
           Continue with Google
         </a>
         <div className="divider"><span>or continue with email</span></div>
-       
 
         <form onSubmit={onSubmit} noValidate autoComplete="off">
           <label htmlFor="email">Email</label>
@@ -104,6 +113,8 @@ export default function Login() {
               autoComplete="new-password"
               value={form.password}
               onChange={onChange}
+              onCopy={blockPasswordAction}
+              onCut={blockPasswordAction}
               className={errors.password ? 'bad' : ''}
             />
             <button type="button" className="eye" onClick={() => setShowPw((prev) => !prev)}>

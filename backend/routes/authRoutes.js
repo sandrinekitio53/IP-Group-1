@@ -14,6 +14,8 @@ const {
   socialCallback,
   forgotPassword,
   resetPassword,
+  listSessions,
+  revokeSession,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -152,6 +154,8 @@ router.post(
 );
 
 router.get("/session", session);
+router.get("/sessions", protect, listSessions);
+router.delete("/sessions/:sid", protect, revokeSession);
 router.post("/refresh", refresh);
 router.post("/logout", logout);
 router.post("/logout-all", protect, logoutAll);

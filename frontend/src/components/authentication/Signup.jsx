@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser, API_URL } from "../../api.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FACEBOOK_ON = import.meta.env.VITE_ENABLE_FACEBOOK === "true";
@@ -16,6 +17,7 @@ function validate({ name, email, password, confirm }) {
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState("");
@@ -29,6 +31,10 @@ export default function Signup() {
     setErrors({ ...errors, [e.target.name]: undefined });
   }
 
+  const blockPasswordAction = (e) => {
+    e.preventDefault();
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setServerError("");
@@ -39,6 +45,7 @@ export default function Signup() {
     setLoading(true);
     try {
       await registerUser({ name: form.name.trim(), email: form.email.trim(), password: form.password });
+      await refreshUser();
       navigate("/dashboard");
     } catch (err) {
       setServerError(err.message);
@@ -114,7 +121,17 @@ export default function Signup() {
 
           <label htmlFor="password">Password</label>
           <div className="pw">
-            <input id="password" name="password" type={showPw ? "text" : "password"} autoComplete="new-password" value={form.password} onChange={onChange} className={errors.password ? "bad" : ""} />
+            <input
+              id="password"
+              name="password"
+              type={showPw ? "text" : "password"}
+              autoComplete="new-password"
+              value={form.password}
+              onChange={onChange}
+              onCopy={blockPasswordAction}
+              onCut={blockPasswordAction}
+              className={errors.password ? "bad" : ""}
+            />
             <button type="button" className="eye" onClick={() => setShowPw(!showPw)}>{showPw ? "Hide" : "Show"}</button>
           </div>
           {form.password && (
@@ -126,7 +143,17 @@ export default function Signup() {
           {errors.password && <small className="err">{errors.password}</small>}
 
           <label htmlFor="confirm">Confirm password</label>
-          <input id="confirm" name="confirm" type={showPw ? "text" : "password"} autoComplete="new-password" value={form.confirm} onChange={onChange} className={errors.confirm ? "bad" : ""} />
+          <input
+            id="confirm"
+            name="confirm"
+            type={showPw ? "text" : "password"}
+            autoComplete="new-password"
+            value={form.confirm}
+            onChange={onChange}
+            onCopy={blockPasswordAction}
+            onCut={blockPasswordAction}
+            className={errors.confirm ? "bad" : ""}
+          />
           {errors.confirm && <small className="err">{errors.confirm}</small>}
 
           <button type="submit" className="primary" disabled={loading}>

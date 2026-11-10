@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { touchSession } = require("../utils/tokens");
 
 exports.protect = async (req, res, next) => {
   try {
@@ -13,7 +14,13 @@ exports.protect = async (req, res, next) => {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
+    const validSession = await touchSession(decoded.sid, user._id);
+    if (!validSession) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
     req.user = user;
+    req.sid = decoded.sid;
     next();
   } catch {
     res.status(401).json({ message: "Not authenticated" });
