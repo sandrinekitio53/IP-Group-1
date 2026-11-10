@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema(
       default: "Developer",
     },
     avatar: { type: String, default: "" },
+    isVerified: { type: Boolean, default: false },
+    verifyTokenHash: { type: String, select: false },
+    verifyTokenExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

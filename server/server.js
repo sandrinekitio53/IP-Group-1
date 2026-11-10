@@ -22,6 +22,7 @@ app.use(passport.initialize());
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/auth", require("./routes/sessionRoutes"));
 app.use(notFound);        // runs only if no route above matched
 app.use(errorHandler);    // must be the very last middleware
 

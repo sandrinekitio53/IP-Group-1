@@ -19,7 +19,7 @@ exports.register = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({ name, email, passwordHash });
 
-    issueTokens(res, user);
+    issueTokens(req, res, user);
 
     res.status(201).json({
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -30,7 +30,12 @@ exports.register = async (req, res) => {
   }
 };
 
-exports.socialCallback = (req, res) => {
-  issueTokens(res, req.user);
-  res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+exports.socialCallback = async (req, res) => {
+  try {
+    await issueTokens(req, res, req.user);
+    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+  } catch (err) {
+    console.error(err);
+    res.redirect(`${process.env.CLIENT_URL}/signup?error=google`);
+  }
 };
